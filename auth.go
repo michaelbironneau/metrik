@@ -1,0 +1,25 @@
+package metrik
+
+//type AuthRequest represents an authorization request. Credentials are passed through HTTP Basic Auth headers.
+type AuthRequest struct {
+	User     string
+	Password string
+	Metric   Metric
+	Tags     *Tags
+}
+
+type AuthError struct {
+	HTTPStatus int
+	Message    string
+}
+
+type AuthProvider interface {
+	Authorize(*AuthRequest) (bool, *AuthError)
+}
+
+//type OpenAPI represents an API with no authorization or authentication (i.e. every request)
+type OpenAPI struct{}
+
+func (o OpenAPI) Authorize(a *AuthRequest) (bool, *AuthError) {
+	return true, nil
+}
