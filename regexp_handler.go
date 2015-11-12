@@ -14,14 +14,14 @@ type regexpHandler struct {
 	routes []*route
 }
 
-func (h *regexpHandler) Route(pattern string, handler http.Handler) *regexpHandler {
+func (h *regexpHandler) Route(pattern string, handler func(http.ResponseWriter, *http.Request)) *regexpHandler {
 	compiledRegexp, err := regexp.Compile(pattern)
 	if err != nil {
 		panic(err) //this will be a compile time panic
 	}
 	h.routes = append(h.routes, &route{
 		pattern: compiledRegexp,
-		handler: handler,
+		handler: http.HandlerFunc(handler),
 	})
 	return h
 }

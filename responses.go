@@ -14,8 +14,8 @@ type metricQueryResponseItem struct {
 }
 
 type metricGroupByResponseItem struct {
-	Name   string          `json:"name"`
-	Groups []GroupbyGroups `json:"groups"`
+	Name   string         `json:"name"`
+	Groups []GroupbyGroup `json:"groups"`
 }
 
 type metricQueryResponse struct {

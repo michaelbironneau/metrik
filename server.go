@@ -3,7 +3,6 @@ package metrik
 import (
 	"encoding/json"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -20,12 +19,21 @@ const DEFAULT_INDEX = `
 </html>
 `
 
+const UNKNOWN_AGGREGATE = `
+{"error": "unknown aggregate"}
+`
+
+const INTERNAL_ERROR = `
+{"error": "internal server error"}
+`
+
 type Server struct {
 	metrics      []Metric
 	tags         []Tag
 	store        Store
 	auth         AuthProvider
-	indexHandler http.Handler
+	aggregates   map[string]Aggregator
+	indexHandler func(http.ResponseWriter, *http.Request)
 	_metricsMeta []MetricMetadata
 	_tagsMeta    []TagMetadata
 	_mms         []byte
@@ -34,8 +42,9 @@ type Server struct {
 
 func NewServer() *Server {
 	s := Server{
-		store: &InMemoryStore{},
-		auth:  &OpenAPI{},
+		store:      &InMemoryStore{},
+		auth:       &OpenAPI{},
+		aggregates: map[string]Aggregator{"sum": Sum{}, "avg": Avg{}},
 	}
 	return &s
 }
@@ -43,6 +52,11 @@ func NewServer() *Server {
 func (s *Server) Metric(m Metric) *Server {
 	s.metrics = append(s.metrics, m)
 	s._metricsMeta = append(s._metricsMeta, getMetricMetadata(m))
+	return s
+}
+
+func (s *Server) Aggregate(a Aggregator, name string) *Server {
+	s.aggregates[name] = a
 	return s
 }
 
@@ -66,31 +80,75 @@ func defaultIndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(DEFAULT_INDEX))
 }
 
+func unknownAggregateHandler(w http.ResponseWriter, r *http.Request) {
+	addHeaders(w, 404)
+	w.Write([]byte(UNKNOWN_AGGREGATE))
+}
+
 func (s *Server) metricsIndexHandler(w http.ResponseWriter, r *http.Request) {
-	addHeaders(w)
+	addHeaders(w, 200)
 	w.Write(s._mms)
 }
 
 func (s *Server) tagsIndexHandler(w http.ResponseWriter, r *http.Request) {
-	addHeaders(w)
+	addHeaders(w, 200)
 	w.Write(s._tms)
 }
 
-func addHeaders(w http.ResponseWriter) {
+func addHeaders(w http.ResponseWriter, status int) {
 	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(status)
 }
 
-//handles queries of the form GET /metrics/:metric_1[,:metric_2[,...:metric_n]]
-func (s *Server) metricTotalAggregateHandler(w http.ResponseWriter, r *http.Request) {
-	url := r.URL.String()[9:] //strip "/metrics/"
-	metrics := strings.Split(url, ",")
-	var retval metricQueryResponse
+func (s *Server) findMetric(name string) (Metric, bool) {
+	for _, metric := range s.metrics {
+		if strings.ToLower(metric.Name()) == name {
+			return metric, true
+		}
+	}
+	return nil, false
+}
+
+//wrapper to handle total aggregate queries
+//handles queries of the form GET /:aggregate/:metric_1[,:metric_2[,...:metric_n]]
+func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		metrics := strings.Split(r.URL.String()[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
+		var retval metricQueryResponse
+		retval.Metrics = make([]metricQueryResponseItem, len(metrics), len(metrics))
+		for _, metricName := range metrics {
+			if metric, ok := s.findMetric(metricName); ok {
+
+			} else {
+				addHeaders(w, 404)
+				w.Write([]byte("{\"error\": \"metric not found - " + metricName + "\"}"))
+				return
+			}
+		}
+	}
 }
 
 //handles queries of the form GET /metrics/:metric_1[,:metric_2[,...:metric_n]]/by/:tag
-func (s *Server) metricGroupByAggregateHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.String()[len(aggregate)+2:], "/by/")
+		if len(parts) != 2 {
+			//we should never reach this
+			panic("url was matched by regexp but clearly does not satisfy it")
+		}
+		metricString, tag := parts[0], parts[1]
+		metrics := strings.Split(metricString, ",")
+		var retval metricGroupByResponse
+		for _, metricName := range metrics {
+			if metric, ok := s.findMetric(metricName); ok {
 
+			} else {
+				addHeaders(w, 404)
+				w.Write([]byte("{\"error\": \"metric not found - " + metricName + "\"}"))
+				return
+			}
+		}
+	}
 }
 
 func (s *Server) Serve(port int) error {
@@ -111,8 +169,13 @@ func (s *Server) Serve(port int) error {
 
 	handler := regexpHandler{}
 	handler.Route("/$", s.indexHandler).Route("/metrics/*$", s.metricsIndexHandler).Route("/tags/*$", s.tagsIndexHandler) //metadata, the order doesn't matter
-	handler.Route("/metrics/.+/by/.+", s.metricGroupByAggregateHandler).Route("/metrics/.+", handler)                     //the order of these two matters
 
+	for aggregateName, _ := range s.aggregates {
+		handler.Route("/("+aggregateName+")/(.+)/by/(.+)", s.metricGroupByHandlerWrapper(aggregateName))
+		handler.Route("/("+aggregateName+")/(.+)", s.totalAggHandlerWrapper(aggregateName))
+	}
+
+	handler.Route("/.+/.+", unknownAggregateHandler)
 	http.ListenAndServe(":"+strconv.Itoa(port), &handler)
 	return nil
 }
