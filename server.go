@@ -33,8 +33,8 @@ const UNAUTHORIZED = `
 `
 
 type Server struct {
-	metrics      []Metric
-	tags         []Tag
+	metrics      []*Metric
+	tags         []*Tag
 	store        Store
 	auth         AuthProvider
 	aggregates   map[string]Aggregator
@@ -57,9 +57,9 @@ func NewServer() *Server {
 	return &s
 }
 
-func (s *Server) Metric(m Metric) *Server {
+func (s *Server) Metric(m *Metric) *Server {
 	s.metrics = append(s.metrics, m)
-	s._metricsMeta = append(s._metricsMeta, getMetricMetadata(m))
+	s._metricsMeta = append(s._metricsMeta, getMetricMetadata(*m))
 	return s
 }
 
@@ -69,9 +69,9 @@ func (s *Server) Aggregate(a Aggregator, name string) *Server {
 	return s
 }
 
-func (s *Server) Tag(t Tag) *Server {
+func (s *Server) Tag(t *Tag) *Server {
 	s.tags = append(s.tags, t)
-	s._tagsMeta = append(s._tagsMeta, getTagMetadata(t))
+	s._tagsMeta = append(s._tagsMeta, getTagMetadata(*t))
 	return s
 }
 
@@ -109,9 +109,9 @@ func addHeaders(w http.ResponseWriter, status int) {
 	w.WriteHeader(status)
 }
 
-func (s *Server) findMetric(name string) (Metric, bool) {
+func (s *Server) findMetric(name string) (*Metric, bool) {
 	for _, metric := range s.metrics {
-		if strings.ToLower(metric.Name()) == name {
+		if strings.ToLower(metric.Name) == name {
 			return metric, true
 		}
 	}
@@ -234,16 +234,16 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 }
 
 //Start metric updaters. Exit on first error.
-func (s *Server) StartUpdaters() error {
+func (s *Server) startUpdaters() error {
 	s._updateChans = make(map[string]chan MetricValue)
 	s._stopChans = make([]chan bool, 0, len(s.metrics))
 	for _, metric := range s.metrics {
-		update, stop, err := metric.RunUpdater()
+		update, stop, err := metric.StartUpdater()
 		if err != nil {
 			s.StopUpdaters()
 			return err
 		}
-		s._updateChans[metric.Name()] = update
+		s._updateChans[metric.Name] = update
 		s._stopChans = append(s._stopChans, stop)
 	}
 	go s.listenForChanges()
@@ -296,6 +296,11 @@ func (s *Server) Serve(port int) error {
 	}
 
 	handler.Route("/.+/.+", unknownAggregateHandler)
+
+	if err := s.startUpdaters(); err != nil {
+		return err
+	}
+
 	http.ListenAndServe(":"+strconv.Itoa(port), &handler)
 	return nil
 }

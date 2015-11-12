@@ -10,11 +10,11 @@ type MetricPoint struct {
 type MetricValue []MetricPoint
 
 //Metric provides an interface between the data fetcher and the aggregator.
-type Metric interface {
-	Name() string                                     //Short name for metric. Should be URL-friendly.
-	Units() string                                    //Units for the metric, for example "Kw".
-	Description() string                              //Description of the metric, for users.
-	RunUpdater() (chan MetricValue, chan bool, error) //start the updater. It should publish values through the first channel, and accept a stop command on the second.
+type Metric struct {
+	Name         string                                      //Short name for metric. Should be URL-friendly.
+	Units        string                                      //Units for the metric, for example "Kw".
+	Description  string                                      //Description of the metric, for users.
+	StartUpdater func() (chan MetricValue, chan bool, error) //start the updater. It should publish values through the first channel, and accept a stop command on the second.
 }
 
 type MetricMetadata struct {
@@ -25,8 +25,8 @@ type MetricMetadata struct {
 
 func getMetricMetadata(m Metric) MetricMetadata {
 	return MetricMetadata{
-		Name:        m.Name(),
-		Units:       m.Units(),
-		Description: m.Description(),
+		Name:        m.Name,
+		Units:       m.Units,
+		Description: m.Description,
 	}
 }

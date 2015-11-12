@@ -63,7 +63,7 @@ func (ii invertedIndex) indexPoint(point MetricPoint, id int) {
 }
 
 func (ii invertedIndex) GetTagGroup(t Tag) (tagGroup, bool) {
-	group, ok := ii[t.Name()]
+	group, ok := ii[t.Name]
 	return group, ok
 }
 
