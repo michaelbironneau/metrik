@@ -1,8 +1,10 @@
 # Metrik
 
+[![GoDoc](https://godoc.org/github.com/michaelbironneau/metrik?status.svg)](https://godoc.org/github.com/michaelbironneau/metrik)
+
 **Warning: This is very experimental, not well documented (yet) and not well tested (yet). Use at your own peril**
 
-Metrik is a small, extensible library to help you expose one or more real-time metrics through a JSON API. Metric values are points that can be tagged with key-value pairs, such as "region: europe". 
+Metrik is a small, extensible library with *no dependencies* to help you expose one or more real-time metrics through a JSON API. Metric values are points that can be tagged with key-value pairs, such as "region: europe". 
 
 **What you provide**
 
