@@ -21,6 +21,7 @@ func runUpdater() (chan metrik.MetricValue, chan bool, error) {
 						Value: rand.NormFloat64()*0.1 + 0.3,
 					}
 				}
+				result <- m
 			case <-stop:
 				return
 			}

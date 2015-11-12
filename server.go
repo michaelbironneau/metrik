@@ -2,10 +2,13 @@ package metrik
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
-	"runtime"
+	//"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 const DEFAULT_INDEX = `
@@ -32,6 +35,10 @@ const UNAUTHORIZED = `
 {"error": "unauthorized"}
 `
 
+const NOT_FOUND = `
+{"error": "unknown route"}
+`
+
 type Server struct {
 	metrics      []*Metric
 	tags         []*Tag
@@ -39,22 +46,30 @@ type Server struct {
 	auth         AuthProvider
 	aggregates   map[string]Aggregator
 	indexHandler func(http.ResponseWriter, *http.Request)
+	logger       *log.Logger
 	_metricsMeta []MetricMetadata
 	_tagsMeta    []TagMetadata
 	_mms         []byte
 	_tms         []byte
 	_indexes     map[string]invertedIndex
+	_ilocks      map[string]*sync.RWMutex
 	_stopChans   []chan bool
 	_updateChans map[string]chan MetricValue
 }
 
 func NewServer() *Server {
 	s := Server{
-		store:      &InMemoryStore{},
-		auth:       &OpenAPI{},
-		aggregates: map[string]Aggregator{"sum": Sum{}, "avg": Avg{}},
+		store:        &InMemoryStore{},
+		auth:         &OpenAPI{},
+		aggregates:   map[string]Aggregator{"sum": Sum{}, "average": Avg{}},
+		indexHandler: defaultIndexHandler,
 	}
 	return &s
+}
+
+func (s *Server) Logger(l *log.Logger) *Server {
+	s.logger = l
+	return s
 }
 
 func (s *Server) Metric(m *Metric) *Server {
@@ -86,6 +101,7 @@ func (s *Server) Auth(a AuthProvider) *Server {
 }
 
 func defaultIndexHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(200)
 	w.Write([]byte(DEFAULT_INDEX))
 }
 
@@ -102,6 +118,11 @@ func (s *Server) metricsIndexHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) tagsIndexHandler(w http.ResponseWriter, r *http.Request) {
 	addHeaders(w, 200)
 	w.Write(s._tms)
+}
+
+func catchallHandler(w http.ResponseWriter, r *http.Request) {
+	addHeaders(w, 404)
+	w.Write([]byte(NOT_FOUND))
 }
 
 func addHeaders(w http.ResponseWriter, status int) {
@@ -144,10 +165,12 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		retval.Metrics = make([]metricQueryResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
 			if index, ok := s._indexes[metricName]; ok {
+				s._ilocks[metricName].RLock()
 				retval.Metrics = append(retval.Metrics, metricQueryResponseItem{
 					Name:  metricName,
 					Value: index.getTotalAggregate(agg),
 				})
+				s._ilocks[metricName].RUnlock()
 			} else {
 				addHeaders(w, 404)
 				w.Write([]byte("{\"error\": \"metric not found - " + metricName + "\"}"))
@@ -206,7 +229,9 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		retval.Metrics = make([]metricGroupByResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
 			if index, ok := s._indexes[metricName]; ok {
+				s._ilocks[metricName].RLock()
 				groups, tagFound := index.GetGroupByAggregate(tag, agg)
+				s._ilocks[metricName].RUnlock()
 				if !tagFound {
 					addHeaders(w, 404)
 					w.Write([]byte("{\"error\": \"tag not found - " + tag + "\"}"))
@@ -233,10 +258,17 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 	}
 }
 
+func (s *Server) logf(fmt string, vals ...interface{}) {
+	if s.logger != nil {
+		s.logger.Printf(fmt, vals)
+	}
+}
+
 //Start metric updaters. Exit on first error.
 func (s *Server) startUpdaters() error {
 	s._updateChans = make(map[string]chan MetricValue)
 	s._stopChans = make([]chan bool, 0, len(s.metrics))
+	s._ilocks = make(map[string]*sync.RWMutex)
 	for _, metric := range s.metrics {
 		update, stop, err := metric.StartUpdater()
 		if err != nil {
@@ -245,7 +277,10 @@ func (s *Server) startUpdaters() error {
 		}
 		s._updateChans[metric.Name] = update
 		s._stopChans = append(s._stopChans, stop)
+		s._ilocks[metric.Name] = &sync.RWMutex{}
 	}
+	s._indexes = make(map[string]invertedIndex)
+
 	go s.listenForChanges()
 	return nil
 }
@@ -255,12 +290,15 @@ func (s *Server) listenForChanges() {
 		for metric, ch := range s._updateChans {
 			select {
 			case newPoints := <-ch:
+				s.logf("received update for metric %s", metric)
+				s._ilocks[metric].Lock()
 				s._indexes[metric] = newInvertedIndex()
 				s._indexes[metric].Index(newPoints)
+				s._ilocks[metric].Unlock()
 			default:
 			}
 		}
-		runtime.Gosched()
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -291,11 +329,13 @@ func (s *Server) Serve(port int) error {
 	handler.Route("/$", s.indexHandler).Route("/metrics/*$", s.metricsIndexHandler).Route("/tags/*$", s.tagsIndexHandler) //metadata, the order doesn't matter
 
 	for aggregateName, _ := range s.aggregates {
-		handler.Route("/("+aggregateName+")/(.+)/by/(.+)", s.metricGroupByHandlerWrapper(aggregateName))
-		handler.Route("/("+aggregateName+")/(.+)", s.totalAggHandlerWrapper(aggregateName))
+		handler.Route("/("+aggregateName+")/(.+)/by/(.+)/*", s.metricGroupByHandlerWrapper(aggregateName))
+		handler.Route("/("+aggregateName+")/(.+)/*", s.totalAggHandlerWrapper(aggregateName))
+		s.logf("Added aggregate %s", aggregateName)
 	}
 
 	handler.Route("/.+/.+", unknownAggregateHandler)
+	handler.Route("/", catchallHandler)
 
 	if err := s.startUpdaters(); err != nil {
 		return err
