@@ -5,7 +5,6 @@ type Tags map[string][]string //Tag is a key-value map of strings representing d
 type Tag interface {
 	Name() string        //Name of the tag group - should be URL friendly.
 	Description() string //Longer description for users.
-	Enumerate() []string //Return all possible tag values.
 }
 
 type TagMetadata struct {

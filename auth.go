@@ -4,8 +4,8 @@ package metrik
 type AuthRequest struct {
 	User     string
 	Password string
-	Metric   Metric
-	Tags     *Tags
+	Metrics  []string
+	Tags     []string
 }
 
 type AuthError struct {

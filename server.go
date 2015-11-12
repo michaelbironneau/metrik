@@ -28,6 +28,10 @@ const INTERNAL_ERROR = `
 {"error": "internal server error"}
 `
 
+const UNAUTHORIZED = `
+{"error": "unauthorized"}
+`
+
 type Server struct {
 	metrics      []Metric
 	tags         []Tag
@@ -127,6 +131,15 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		metrics := strings.Split(r.URL.String()[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
+		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, nil)); !ok && err == nil {
+			addHeaders(w, 403)
+			w.Write([]byte(UNAUTHORIZED))
+			return
+		} else if err != nil {
+			addHeaders(w, 500)
+			w.Write([]byte(INTERNAL_ERROR))
+			return
+		}
 		var retval metricQueryResponse
 		retval.Metrics = make([]metricQueryResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
@@ -152,6 +165,16 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 	}
 }
 
+func makeAuthRequest(r *http.Request, metrics []string, tags []string) *AuthRequest {
+	user, pass, _ := r.BasicAuth()
+	return &AuthRequest{
+		User:     user,
+		Password: pass,
+		Metrics:  metrics,
+		Tags:     tags,
+	}
+}
+
 //handles queries of the form GET /metrics/:metric_1[,:metric_2[,...:metric_n]]/by/:tag
 func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.ResponseWriter, *http.Request) {
 	var (
@@ -170,6 +193,15 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		}
 		metricString, tag := parts[0], parts[1]
 		metrics := strings.Split(metricString, ",")
+		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, []string{tag})); !ok && err == nil {
+			addHeaders(w, 403)
+			w.Write([]byte(UNAUTHORIZED))
+			return
+		} else if err != nil {
+			addHeaders(w, 500)
+			w.Write([]byte(INTERNAL_ERROR))
+			return
+		}
 		var retval metricGroupByResponse
 		retval.Metrics = make([]metricGroupByResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
