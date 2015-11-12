@@ -67,13 +67,13 @@ func (ii invertedIndex) GetTagGroup(t Tag) (tagGroup, bool) {
 	return group, ok
 }
 
-func (ii invertedIndex) GetGroupByAggregate(t Tag, a Aggregator) ([]GroupbyGroup, bool) {
+func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator) ([]GroupbyGroup, bool) {
 	var (
 		tg  tagGroup
 		ok  bool
 		ret []GroupbyGroup
 	)
-	if tg, ok = ii[t.Name()]; !ok {
+	if tg, ok = ii[tag]; !ok {
 		return nil, false
 	}
 
@@ -89,7 +89,7 @@ func (ii invertedIndex) GetGroupByAggregate(t Tag, a Aggregator) ([]GroupbyGroup
 
 func (ii invertedIndex) getTotalAggregate(a Aggregator) float64 {
 	var valList [][]float64
-	for tag, branch := range ii {
+	for _, branch := range ii {
 		for _, tagLeaf := range branch {
 			valList = append(valList, tagLeaf.Vals) //slices are passed by reference so this doesn't actually create a copy of the data...right?
 		}

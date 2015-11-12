@@ -32,7 +32,3 @@ func (i InMemoryStore) Get(key []byte) ([]byte, error) {
 	defer i.RUnlock()
 	return i.store[string(key)], nil
 }
-
-//func (i InMemoryStore) GetByTag(m Metric, t Tags) (MetricValue, error) {
-//	return nil, nil
-//}

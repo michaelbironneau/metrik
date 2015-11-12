@@ -11,10 +11,10 @@ type MetricValue []MetricPoint
 
 //Metric provides an interface between the data fetcher and the aggregator.
 type Metric interface {
-	Name() string               //Short name for metric. Should be URL-friendly.
-	Units() string              //Units for the metric, for example "Kw".
-	Description() string        //Description of the metric, for users.
-	Pull() (MetricValue, error) //Fetch the latest metric points
+	Name() string                                     //Short name for metric. Should be URL-friendly.
+	Units() string                                    //Units for the metric, for example "Kw".
+	Description() string                              //Description of the metric, for users.
+	RunUpdater() (chan MetricValue, chan bool, error) //start the updater. It should publish values through the first channel, and accept a stop command on the second.
 }
 
 type MetricMetadata struct {

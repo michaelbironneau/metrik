@@ -38,6 +38,7 @@ type Server struct {
 	_tagsMeta    []TagMetadata
 	_mms         []byte
 	_tms         []byte
+	_indexes     map[string]invertedIndex
 }
 
 func NewServer() *Server {
@@ -57,6 +58,7 @@ func (s *Server) Metric(m Metric) *Server {
 
 func (s *Server) Aggregate(a Aggregator, name string) *Server {
 	s.aggregates[name] = a
+	s._indexes[name] = newInvertedIndex()
 	return s
 }
 
@@ -112,24 +114,51 @@ func (s *Server) findMetric(name string) (Metric, bool) {
 //wrapper to handle total aggregate queries
 //handles queries of the form GET /:aggregate/:metric_1[,:metric_2[,...:metric_n]]
 func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWriter, *http.Request) {
+	var (
+		agg      Aggregator
+		aggFound bool
+	)
+	if agg, aggFound = s.aggregates[aggregate]; !aggFound {
+		//this should never get reached
+		panic("url was matched by regexp but clearly does not satisfy it")
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		metrics := strings.Split(r.URL.String()[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
 		var retval metricQueryResponse
-		retval.Metrics = make([]metricQueryResponseItem, len(metrics), len(metrics))
+		retval.Metrics = make([]metricQueryResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
-			if metric, ok := s.findMetric(metricName); ok {
-
+			if index, ok := s._indexes[metricName]; ok {
+				retval.Metrics = append(retval.Metrics, metricQueryResponseItem{
+					Name:  metricName,
+					Value: index.getTotalAggregate(agg),
+				})
 			} else {
 				addHeaders(w, 404)
 				w.Write([]byte("{\"error\": \"metric not found - " + metricName + "\"}"))
 				return
 			}
 		}
+		addHeaders(w, 200)
+		b, err := json.Marshal(retval)
+		if err != nil {
+			addHeaders(w, 500)
+			w.Write([]byte(INTERNAL_ERROR))
+			return
+		}
+		w.Write(b)
 	}
 }
 
 //handles queries of the form GET /metrics/:metric_1[,:metric_2[,...:metric_n]]/by/:tag
 func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.ResponseWriter, *http.Request) {
+	var (
+		agg      Aggregator
+		aggFound bool
+	)
+	if agg, aggFound = s.aggregates[aggregate]; !aggFound {
+		//this should never get reached
+		panic("url was matched by regexp but clearly does not satisfy it")
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(r.URL.String()[len(aggregate)+2:], "/by/")
 		if len(parts) != 2 {
@@ -139,15 +168,33 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		metricString, tag := parts[0], parts[1]
 		metrics := strings.Split(metricString, ",")
 		var retval metricGroupByResponse
+		retval.Metrics = make([]metricGroupByResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
-			if metric, ok := s.findMetric(metricName); ok {
-
+			if index, ok := s._indexes[metricName]; ok {
+				groups, tagFound := index.GetGroupByAggregate(tag, agg)
+				if !tagFound {
+					addHeaders(w, 404)
+					w.Write([]byte("{\"error\": \"tag not found - " + tag + "\"}"))
+					return
+				}
+				retval.Metrics = append(retval.Metrics, metricGroupByResponseItem{
+					Name:   metricName,
+					Groups: groups,
+				})
 			} else {
 				addHeaders(w, 404)
 				w.Write([]byte("{\"error\": \"metric not found - " + metricName + "\"}"))
 				return
 			}
 		}
+		addHeaders(w, 200)
+		b, err := json.Marshal(retval)
+		if err != nil {
+			addHeaders(w, 500)
+			w.Write([]byte(INTERNAL_ERROR))
+			return
+		}
+		w.Write(b)
 	}
 }
 
