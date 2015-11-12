@@ -3,6 +3,7 @@ package metrik
 import (
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -39,6 +40,8 @@ type Server struct {
 	_mms         []byte
 	_tms         []byte
 	_indexes     map[string]invertedIndex
+	_stopChans   []chan bool
+	_updateChans map[string]chan MetricValue
 }
 
 func NewServer() *Server {
@@ -195,6 +198,44 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 			return
 		}
 		w.Write(b)
+	}
+}
+
+//Start metric updaters. Exit on first error.
+func (s *Server) StartUpdaters() error {
+	s._updateChans = make(map[string]chan MetricValue)
+	s._stopChans = make([]chan bool, 0, len(s.metrics))
+	for _, metric := range s.metrics {
+		update, stop, err := metric.RunUpdater()
+		if err != nil {
+			s.StopUpdaters()
+			return err
+		}
+		s._updateChans[metric.Name()] = update
+		s._stopChans = append(s._stopChans, stop)
+	}
+	go s.listenForChanges()
+	return nil
+}
+
+func (s *Server) listenForChanges() {
+	for {
+		for metric, ch := range s._updateChans {
+			select {
+			case newPoints := <-ch:
+				s._indexes[metric] = newInvertedIndex()
+				s._indexes[metric].Index(newPoints)
+			default:
+			}
+		}
+		runtime.Gosched()
+	}
+}
+
+//Sends a stop signal to the metric updaters.
+func (s *Server) StopUpdaters() {
+	for _, stopChan := range s._stopChans {
+		stopChan <- true
 	}
 }
 
