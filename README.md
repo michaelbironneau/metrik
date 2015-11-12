@@ -1,6 +1,6 @@
 # Metrik
 
-**Warning: This is very experimental and not very well tested. Use at your own peril**
+**Warning: This is very experimental, not well documented (yet) and not well tested (yet). Use at your own peril**
 
 Metrik is a small library to help you expose one or more real-time metrics through a JSON API. Metric values are points that can be tagged with key-value pairs, such as "region: europe". 
 
@@ -14,6 +14,11 @@ Metrik is a small library to help you expose one or more real-time metrics throu
 * It starts your updater and captures any updates you send it via a channel
 * It indexes this data in an in-memory inverted index structure
 * It serves an HTTP API for consumers to slice and dice this data (group-by aggregation)
+
+**Optional extras**
+
+* Custom aggregators
+* Custom logging
 
 ## The slice-and-dice HTTP API
 
@@ -45,3 +50,6 @@ GET /average/cpu/by/rack
 }
 ```
 
+## Example
+
+Coming soon. For now check out the code sample in  the `example` folder.
