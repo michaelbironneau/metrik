@@ -6,9 +6,9 @@ type Aggregator interface {
 	ApplyMany([][]float64) float64
 }
 
-type Sum struct{}
+type sum struct{}
 
-func (s Sum) Apply(vals []float64) float64 {
+func (s sum) Apply(vals []float64) float64 {
 	if len(vals) == 0 {
 		return 0
 	}
@@ -19,7 +19,7 @@ func (s Sum) Apply(vals []float64) float64 {
 	return ret
 }
 
-func (s Sum) ApplyMany(valLists [][]float64) float64 {
+func (s sum) ApplyMany(valLists [][]float64) float64 {
 	var ret float64
 	for _, vals := range valLists {
 		ret += s.Apply(vals)
@@ -27,28 +27,28 @@ func (s Sum) ApplyMany(valLists [][]float64) float64 {
 	return ret
 }
 
-type Avg struct{}
+type avg struct{}
 
-func (a Avg) Apply(vals []float64) float64 {
+func (a avg) Apply(vals []float64) float64 {
 	if len(vals) == 0 {
 		return 0
 	}
-	var sum float64
+	var ssum float64
 	for _, val := range vals {
-		sum += val
+		ssum += val
 	}
-	return sum / float64(len(vals))
+	return ssum / float64(len(vals))
 }
 
-func (a Avg) ApplyMany(valLists [][]float64) float64 {
+func (a avg) ApplyMany(valLists [][]float64) float64 {
 	var (
-		sum   float64
+		ssum  float64
 		count float64
 	)
-	s := Sum{}
+	s := sum{}
 	for _, vals := range valLists {
-		sum += s.Apply(vals)
+		ssum += s.Apply(vals)
 		count += float64(len(vals))
 	}
-	return sum / count
+	return ssum / count
 }

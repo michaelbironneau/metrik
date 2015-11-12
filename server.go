@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const DEFAULT_INDEX = `
+const _DEFAULT_INDEX = `
 <!doctype html>
 <html>
 <head>
@@ -23,19 +23,19 @@ const DEFAULT_INDEX = `
 </html>
 `
 
-const UNKNOWN_AGGREGATE = `
+const _UNKNOWN_AGGREGATE = `
 {"error": "unknown aggregate"}
 `
 
-const INTERNAL_ERROR = `
+const _INTERNAL_ERROR = `
 {"error": "internal server error"}
 `
 
-const UNAUTHORIZED = `
-{"error": "unauthorized"}
+const _UNAUTHORIZED = `
+{"error": "_UNAUTHORIZED"}
 `
 
-const NOT_FOUND = `
+const _NOT_FOUND = `
 {"error": "unknown route"}
 `
 
@@ -60,8 +60,8 @@ type Server struct {
 func NewServer() *Server {
 	s := Server{
 		store:        &InMemoryStore{},
-		auth:         &OpenAPI{},
-		aggregates:   map[string]Aggregator{"sum": Sum{}, "average": Avg{}},
+		auth:         &openAPI{},
+		aggregates:   map[string]Aggregator{"sum": sum{}, "average": avg{}},
 		indexHandler: defaultIndexHandler,
 	}
 	return &s
@@ -102,12 +102,12 @@ func (s *Server) Auth(a AuthProvider) *Server {
 
 func defaultIndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
-	w.Write([]byte(DEFAULT_INDEX))
+	w.Write([]byte(_DEFAULT_INDEX))
 }
 
 func unknownAggregateHandler(w http.ResponseWriter, r *http.Request) {
 	addHeaders(w, 404)
-	w.Write([]byte(UNKNOWN_AGGREGATE))
+	w.Write([]byte(_UNKNOWN_AGGREGATE))
 }
 
 func (s *Server) metricsIndexHandler(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +122,7 @@ func (s *Server) tagsIndexHandler(w http.ResponseWriter, r *http.Request) {
 
 func catchallHandler(w http.ResponseWriter, r *http.Request) {
 	addHeaders(w, 404)
-	w.Write([]byte(NOT_FOUND))
+	w.Write([]byte(_NOT_FOUND))
 }
 
 func addHeaders(w http.ResponseWriter, status int) {
@@ -154,11 +154,11 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		metrics := strings.Split(r.URL.String()[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
 		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, nil)); !ok && err == nil {
 			addHeaders(w, 403)
-			w.Write([]byte(UNAUTHORIZED))
+			w.Write([]byte(_UNAUTHORIZED))
 			return
 		} else if err != nil {
 			addHeaders(w, 500)
-			w.Write([]byte(INTERNAL_ERROR))
+			w.Write([]byte(_INTERNAL_ERROR))
 			return
 		}
 		var retval metricQueryResponse
@@ -181,7 +181,7 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		b, err := json.Marshal(retval)
 		if err != nil {
 			addHeaders(w, 500)
-			w.Write([]byte(INTERNAL_ERROR))
+			w.Write([]byte(_INTERNAL_ERROR))
 			return
 		}
 		w.Write(b)
@@ -218,11 +218,11 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		metrics := strings.Split(metricString, ",")
 		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, []string{tag})); !ok && err == nil {
 			addHeaders(w, 403)
-			w.Write([]byte(UNAUTHORIZED))
+			w.Write([]byte(_UNAUTHORIZED))
 			return
 		} else if err != nil {
 			addHeaders(w, 500)
-			w.Write([]byte(INTERNAL_ERROR))
+			w.Write([]byte(_INTERNAL_ERROR))
 			return
 		}
 		var retval metricGroupByResponse
@@ -251,7 +251,7 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		b, err := json.Marshal(retval)
 		if err != nil {
 			addHeaders(w, 500)
-			w.Write([]byte(INTERNAL_ERROR))
+			w.Write([]byte(_INTERNAL_ERROR))
 			return
 		}
 		w.Write(b)

@@ -18,8 +18,8 @@ type AuthProvider interface {
 }
 
 //type OpenAPI represents an API with no authorization or authentication (i.e. every request)
-type OpenAPI struct{}
+type openAPI struct{}
 
-func (o OpenAPI) Authorize(a *AuthRequest) (bool, *AuthError) {
+func (o openAPI) Authorize(a *AuthRequest) (bool, *AuthError) {
 	return true, nil
 }
