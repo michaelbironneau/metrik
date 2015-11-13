@@ -11,8 +11,8 @@ type MetricValue []MetricPoint
 
 //Metric provides an interface between the data fetcher and the aggregator.
 type Metric struct {
-	Name         string                                      `json:"name"`        //Short name for metric. Should be URL-friendly.
-	Units        string                                      `json:"units"`       //Units for the metric, for example "Kw".
-	Description  string                                      `json:"description"` //Description of the metric, for users.
-	StartUpdater func() (chan MetricValue, chan bool, error) `json:"-"`           //start the updater. It should publish values through the first channel, and accept a stop command on the second.
+	Name        string                                  `json:"name"`        //Short name for metric. Should be URL-friendly.
+	Units       string                                  `json:"units"`       //Units for the metric, for example "Kw".
+	Description string                                  `json:"description"` //Description of the metric, for users.
+	UpdateFunc  func(chan MetricValue, chan bool) error `json:"-"`           //Function that runs the updater. It should block. It should publish values through the first channel, and accept a stop command on the second.
 }

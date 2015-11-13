@@ -260,17 +260,31 @@ func (s *Server) logf(fmt string, vals ...interface{}) {
 	}
 }
 
-//Start metric updaters. Exit on first error.
+func (s *Server) updaterWrapper(m *Metric) (chan MetricValue, chan bool) {
+	result := make(chan MetricValue, 1)
+	stop := make(chan bool)
+	go func() {
+		for {
+			err := m.UpdateFunc(result, stop)
+			if err != nil {
+				s.logf("updater %s exited with error: %v. retrying in 3 seconds... \n", m.Name, err)
+				time.Sleep(3 * time.Second) //Todo: Add some better retry logic here
+			} else {
+				break
+			}
+		}
+		s.logf("updater %s exited", m.Name)
+	}()
+	return result, stop
+}
+
+//Start metric updaters.
 func (s *Server) startUpdaters() error {
 	s._updateChans = make(map[string]chan MetricValue)
 	s._stopChans = make([]chan bool, 0, len(s.metrics))
 	s._ilocks = make(map[string]*sync.RWMutex)
 	for _, metric := range s.metrics {
-		update, stop, err := metric.StartUpdater()
-		if err != nil {
-			s.StopUpdaters()
-			return err
-		}
+		update, stop := s.updaterWrapper(metric)
 		s._updateChans[metric.Name] = update
 		s._stopChans = append(s._stopChans, stop)
 		s._ilocks[metric.Name] = &sync.RWMutex{}
