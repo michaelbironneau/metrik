@@ -88,6 +88,17 @@ func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator, t Tags) ([
 
 	ret = make([]group, 0, len(tg))
 	for key, values := range tg {
+		if filterVals, ok := t[tag]; ok && !isIn(filterVals, key) {
+			//short-circuit if we are filtering by the group-by
+			//tag and the filter value doesn't match the current
+			//leaf tag value. Eg. group by rack where rack = 0
+			//only matches one leaf.
+			ret = append(ret, group{
+				Key:   key,
+				Value: 0,
+			})
+			continue
+		}
 		if filter == nil {
 			filteredValues = values
 		} else {
@@ -99,6 +110,15 @@ func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator, t Tags) ([
 		})
 	}
 	return ret, true
+}
+
+func isIn(slice []string, search string) bool {
+	for _, s := range slice {
+		if s == search {
+			return true
+		}
+	}
+	return false
 }
 
 //get total aggregate, optionally filtered by tags. the bool return functions as 'ok',
@@ -150,6 +170,9 @@ func (ii invertedIndex) filter(t Tags) (*leaf, bool) {
 func intersect(l1, l2 leaf) *leaf {
 	var ret leaf
 	var capacity int
+	if len(l1.Ids) == 0 || len(l2.Ids) == 0 {
+		return &ret
+	}
 	//set capacity to be the smaller of the two lists
 	if len(l1.Ids) > len(l2.Ids) {
 		capacity = len(l2.Ids)
