@@ -67,21 +67,35 @@ func (ii invertedIndex) GetTagGroup(t Tag) (tagGroup, bool) {
 	return group, ok
 }
 
-func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator) ([]group, bool) {
+func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator, t Tags) ([]group, bool) {
 	var (
-		tg  tagGroup
-		ok  bool
-		ret []group
+		tg             tagGroup
+		ok             bool
+		ret            []group
+		filter         *leaf
+		filteredValues *leaf
 	)
 	if tg, ok = ii[tag]; !ok {
 		return nil, false
 	}
+	if t != nil && len(t) > 0 {
+		filter, ok = ii.filter(t)
+		if !ok {
+			return nil, false
+		}
+
+	}
 
 	ret = make([]group, 0, len(tg))
 	for key, values := range tg {
+		if filter == nil {
+			filteredValues = values
+		} else {
+			filteredValues = intersect(*filter, *values)
+		}
 		ret = append(ret, group{
 			Key:   key,
-			Value: a.Apply(values.Vals),
+			Value: a.Apply(filteredValues.Vals),
 		})
 	}
 	return ret, true
@@ -89,7 +103,7 @@ func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator) ([]group, 
 
 //get total aggregate, optionally filtered by tags. the bool return functions as 'ok',
 //as in 'ok, we found the tags in the filter'
-func (ii invertedIndex) getTotalAggregate(a Aggregator, t Tags) (float64, bool) {
+func (ii invertedIndex) GetTotalAggregate(a Aggregator, t Tags) (float64, bool) {
 	var valList [][]float64
 
 	//no filter
@@ -102,7 +116,15 @@ func (ii invertedIndex) getTotalAggregate(a Aggregator, t Tags) (float64, bool) 
 		return a.ApplyMany(valList), true
 	}
 
-	//filter
+	if filtered, ok := ii.filter(t); ok {
+		return a.Apply(filtered.Vals), true
+	} else {
+		return 0, false
+	}
+
+}
+
+func (ii invertedIndex) filter(t Tags) (*leaf, bool) {
 	var intersection *leaf
 	for tagKey, tagValues := range t {
 		if leaves, ok := ii[tagKey]; ok {
@@ -115,11 +137,10 @@ func (ii invertedIndex) getTotalAggregate(a Aggregator, t Tags) (float64, bool) 
 				}
 			}
 		} else {
-			return 0, false
+			return nil, false
 		}
 	}
-	return a.Apply(intersection.Vals), true
-
+	return intersection, true
 }
 
 //intersect the lists s1 and s2.

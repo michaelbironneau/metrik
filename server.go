@@ -162,9 +162,9 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		retval.Metrics = make([]metricQueryResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
 			if index, ok := s._indexes[metricName]; ok {
-				s._ilocks[metricName].RLock()
 				filter := parseFilter(r.URL)
-				val, tagsFound := index.getTotalAggregate(agg, filter)
+				s._ilocks[metricName].RLock()
+				val, tagsFound := index.GetTotalAggregate(agg, filter)
 				s._ilocks[metricName].RUnlock()
 				if tagsFound == false {
 					addHeaders(w, 404)
@@ -218,7 +218,7 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		panic("url was matched by regexp but clearly does not satisfy it")
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(r.URL.String()[len(aggregate)+2:], "/by/")
+		parts := strings.Split(r.URL.Path[len(aggregate)+2:], "/by/")
 		if len(parts) != 2 {
 			//we should never reach this
 			panic("url was matched by regexp but clearly does not satisfy it")
@@ -238,8 +238,9 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		retval.Metrics = make([]metricGroupByResponseItem, 0, len(metrics))
 		for _, metricName := range metrics {
 			if index, ok := s._indexes[metricName]; ok {
+				filter := parseFilter(r.URL)
 				s._ilocks[metricName].RLock()
-				groups, tagFound := index.GetGroupByAggregate(tag, agg)
+				groups, tagFound := index.GetGroupByAggregate(tag, agg, filter)
 				s._ilocks[metricName].RUnlock()
 				if !tagFound {
 					addHeaders(w, 404)
