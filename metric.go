@@ -11,22 +11,8 @@ type MetricValue []MetricPoint
 
 //Metric provides an interface between the data fetcher and the aggregator.
 type Metric struct {
-	Name         string                                      //Short name for metric. Should be URL-friendly.
-	Units        string                                      //Units for the metric, for example "Kw".
-	Description  string                                      //Description of the metric, for users.
-	StartUpdater func() (chan MetricValue, chan bool, error) //start the updater. It should publish values through the first channel, and accept a stop command on the second.
-}
-
-type MetricMetadata struct {
-	Name        string `json:"name"`
-	Units       string `json:"units"`
-	Description string `json:"description"`
-}
-
-func getMetricMetadata(m Metric) MetricMetadata {
-	return MetricMetadata{
-		Name:        m.Name,
-		Units:       m.Units,
-		Description: m.Description,
-	}
+	Name         string                                      `json:"name"`        //Short name for metric. Should be URL-friendly.
+	Units        string                                      `json:"units"`       //Units for the metric, for example "Kw".
+	Description  string                                      `json:"description"` //Description of the metric, for users.
+	StartUpdater func() (chan MetricValue, chan bool, error) `json:"-"`           //start the updater. It should publish values through the first channel, and accept a stop command on the second.
 }

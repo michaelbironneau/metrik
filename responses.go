@@ -1,11 +1,11 @@
 package metrik
 
 type metricListResponse struct {
-	Metrics []MetricMetadata `json:"metrics"`
+	Metrics []*Metric `json:"metrics"`
 }
 
 type tagListResponse struct {
-	Tags []TagMetadata `json:"tags"`
+	Tags []*Tag `json:"tags"`
 }
 
 type metricQueryResponseItem struct {

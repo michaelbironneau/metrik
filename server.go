@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	//"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,8 +46,7 @@ type Server struct {
 	aggregates   map[string]Aggregator
 	indexHandler func(http.ResponseWriter, *http.Request)
 	logger       *log.Logger
-	_metricsMeta []MetricMetadata
-	_tagsMeta    []TagMetadata
+	_tagsMeta    []Tag
 	_mms         []byte
 	_tms         []byte
 	_indexes     map[string]invertedIndex
@@ -74,7 +72,6 @@ func (s *Server) Logger(l *log.Logger) *Server {
 
 func (s *Server) Metric(m *Metric) *Server {
 	s.metrics = append(s.metrics, m)
-	s._metricsMeta = append(s._metricsMeta, getMetricMetadata(*m))
 	return s
 }
 
@@ -86,7 +83,6 @@ func (s *Server) Aggregate(a Aggregator, name string) *Server {
 
 func (s *Server) Tag(t *Tag) *Server {
 	s.tags = append(s.tags, t)
-	s._tagsMeta = append(s._tagsMeta, getTagMetadata(*t))
 	return s
 }
 
@@ -312,10 +308,10 @@ func (s *Server) StopUpdaters() {
 func (s *Server) Serve(port int) error {
 	var err error
 	mms := metricListResponse{
-		Metrics: s._metricsMeta,
+		Metrics: s.metrics,
 	}
 	tts := tagListResponse{
-		Tags: s._tagsMeta,
+		Tags: s.tags,
 	}
 	//Cache all the metadata
 	if s._mms, err = json.Marshal(mms); err != nil {
