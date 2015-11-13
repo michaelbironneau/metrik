@@ -46,6 +46,35 @@ func TestTotalFiltered(t *testing.T) {
 	}
 }
 
+func TestGroupBy(t *testing.T) {
+	index := dummyIndex1()
+	val, _ := index.GetGroupByAggregate("rack", &sum{}, nil)
+	if len(val) != 20 {
+		t.Errorf("expected 20 groups, instead got %v", len(val))
+	}
+	for i := range val {
+		if val[i].Value != 500 {
+			t.Errorf("expected sum to be 500, instead got %v", val[i].Value)
+		}
+	}
+}
+
+func TestGroupByFiltered(t *testing.T) {
+	index := dummyIndex1()
+	val, _ := index.GetGroupByAggregate("rack", &sum{}, map[string][]string{"rack": []string{"0"}})
+	if len(val) != 20 {
+		t.Errorf("expected 20 groups, instead got %v", len(val))
+	}
+	for i := range val {
+		if val[i].Key == "0" && val[i].Value != 500 {
+			t.Errorf("expected sum to be 500, instead got %v", val[i].Value)
+		} else if val[i].Key != "0" && val[i].Value != 0 {
+			t.Errorf("expected sum to be 0, instead got %v", val[i].Value)
+		}
+	}
+
+}
+
 func BenchmarkTotal(b *testing.B) {
 	b.StopTimer()
 	index := dummyIndex1()
