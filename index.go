@@ -10,8 +10,8 @@ type leaf struct {
 	Vals []float64
 }
 
-//type GroupByGroups represents aggregated metric values, broken down by group-by tags.
-type GroupbyGroup struct {
+//type groups represents aggregated metric values, broken down by group-by tags.
+type group struct {
 	Key   string  `json:"key"`
 	Value float64 `json:"value"`
 }
@@ -27,13 +27,13 @@ func newInvertedIndex() invertedIndex {
 	return ii
 }
 
-func (ii invertedIndex) Index(points MetricValue) {
+func (ii invertedIndex) Index(points Points) {
 	for i := range points {
 		ii.indexPoint(points[i], i)
 	}
 }
 
-func (ii invertedIndex) indexPoint(point MetricPoint, id int) {
+func (ii invertedIndex) indexPoint(point Point, id int) {
 	for tag, values := range point.Tags {
 		if tagMap, ok := ii[tag]; ok {
 			for _, val := range values {
@@ -67,19 +67,19 @@ func (ii invertedIndex) GetTagGroup(t Tag) (tagGroup, bool) {
 	return group, ok
 }
 
-func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator) ([]GroupbyGroup, bool) {
+func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator) ([]group, bool) {
 	var (
 		tg  tagGroup
 		ok  bool
-		ret []GroupbyGroup
+		ret []group
 	)
 	if tg, ok = ii[tag]; !ok {
 		return nil, false
 	}
 
-	ret = make([]GroupbyGroup, 0, len(tg))
+	ret = make([]group, 0, len(tg))
 	for key, values := range tg {
-		ret = append(ret, GroupbyGroup{
+		ret = append(ret, group{
 			Key:   key,
 			Value: a.Apply(values.Vals),
 		})

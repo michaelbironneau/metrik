@@ -11,23 +11,23 @@ type Store interface {
 	Get([]byte) ([]byte, error)      //Retrieve value
 }
 
-type InMemoryStore struct {
+type inMemoryStore struct {
 	sync.RWMutex
 	store map[string][]byte
 }
 
-func (i InMemoryStore) Initialize(...interface{}) error {
+func (i inMemoryStore) Initialize(...interface{}) error {
 	return nil
 }
 
-func (i InMemoryStore) Put(key []byte, val []byte) error {
+func (i inMemoryStore) Put(key []byte, val []byte) error {
 	i.Lock()
 	i.store[string(key)] = val
 	i.Unlock()
 	return nil
 }
 
-func (i InMemoryStore) Get(key []byte) ([]byte, error) {
+func (i inMemoryStore) Get(key []byte) ([]byte, error) {
 	i.RLock()
 	defer i.RUnlock()
 	return i.store[string(key)], nil

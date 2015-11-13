@@ -52,12 +52,12 @@ type Server struct {
 	_indexes     map[string]invertedIndex
 	_ilocks      map[string]*sync.RWMutex
 	_stopChans   []chan bool
-	_updateChans map[string]chan MetricValue
+	_updateChans map[string]chan Points
 }
 
 func NewServer() *Server {
 	s := Server{
-		store:        &InMemoryStore{},
+		store:        &inMemoryStore{},
 		auth:         &openAPI{},
 		aggregates:   map[string]Aggregator{"sum": sum{}, "average": avg{}},
 		indexHandler: defaultIndexHandler,
@@ -260,8 +260,8 @@ func (s *Server) logf(fmt string, vals ...interface{}) {
 	}
 }
 
-func (s *Server) updaterWrapper(m *Metric) (chan MetricValue, chan bool) {
-	result := make(chan MetricValue, 1)
+func (s *Server) updaterWrapper(m *Metric) (chan Points, chan bool) {
+	result := make(chan Points, 1)
 	stop := make(chan bool)
 	go func() {
 		for {
@@ -280,7 +280,7 @@ func (s *Server) updaterWrapper(m *Metric) (chan MetricValue, chan bool) {
 
 //Start metric updaters.
 func (s *Server) startUpdaters() error {
-	s._updateChans = make(map[string]chan MetricValue)
+	s._updateChans = make(map[string]chan Points)
 	s._stopChans = make([]chan bool, 0, len(s.metrics))
 	s._ilocks = make(map[string]*sync.RWMutex)
 	for _, metric := range s.metrics {
