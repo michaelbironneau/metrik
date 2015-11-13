@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -147,7 +148,7 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		panic("url was matched by regexp but clearly does not satisfy it")
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		metrics := strings.Split(r.URL.String()[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
+		metrics := strings.Split(r.URL.Path[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
 		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, nil)); !ok && err == nil {
 			addHeaders(w, 403)
 			w.Write([]byte(_UNAUTHORIZED))
@@ -162,11 +163,19 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		for _, metricName := range metrics {
 			if index, ok := s._indexes[metricName]; ok {
 				s._ilocks[metricName].RLock()
+				filter := parseFilter(r.URL)
+				val, tagsFound := index.getTotalAggregate(agg, filter)
+				s._ilocks[metricName].RUnlock()
+				if tagsFound == false {
+					addHeaders(w, 404)
+					w.Write([]byte("{\"error\": \"one or more tags in predicate not found\"}"))
+					return
+				}
 				retval.Metrics = append(retval.Metrics, metricQueryResponseItem{
 					Name:  metricName,
-					Value: index.getTotalAggregate(agg),
+					Value: val,
 				})
-				s._ilocks[metricName].RUnlock()
+
 			} else {
 				addHeaders(w, 404)
 				w.Write([]byte("{\"error\": \"metric not found - " + metricName + "\"}"))
@@ -182,6 +191,10 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		}
 		w.Write(b)
 	}
+}
+
+func parseFilter(u *url.URL) Tags {
+	return Tags(u.Query())
 }
 
 func makeAuthRequest(r *http.Request, metrics []string, tags []string) *AuthRequest {

@@ -87,14 +87,69 @@ func (ii invertedIndex) GetGroupByAggregate(tag string, a Aggregator) ([]group, 
 	return ret, true
 }
 
-func (ii invertedIndex) getTotalAggregate(a Aggregator) float64 {
+//get total aggregate, optionally filtered by tags. the bool return functions as 'ok',
+//as in 'ok, we found the tags in the filter'
+func (ii invertedIndex) getTotalAggregate(a Aggregator, t Tags) (float64, bool) {
 	var valList [][]float64
-	for _, branch := range ii {
-		for _, tagLeaf := range branch {
-			valList = append(valList, tagLeaf.Vals) //slices are passed by reference so this doesn't actually create a copy of the data...right?
+
+	//no filter
+	if t == nil || len(t) == 0 {
+		for _, branch := range ii {
+			for _, tagLeaf := range branch {
+				valList = append(valList, tagLeaf.Vals) //slices are passed by reference so this doesn't actually create a copy of the data...right?
+			}
+		}
+		return a.ApplyMany(valList), true
+	}
+
+	//filter
+	var intersection *leaf
+	for tagKey, tagValues := range t {
+		if leaves, ok := ii[tagKey]; ok {
+			for _, val := range tagValues {
+				if l, ok2 := leaves[val]; ok2 && intersection == nil {
+					//initialize intersection
+					intersection = l
+				} else if ok2 && intersection != nil {
+					intersection = intersect(*intersection, *l)
+				}
+			}
+		} else {
+			return 0, false
 		}
 	}
-	return a.ApplyMany(valList)
+	return a.Apply(intersection.Vals), true
+
+}
+
+//intersect the lists s1 and s2.
+//each point we index has an autoincreasing id. therefore, the intersection
+//algorithm is entitled to assume that the lists s1 and s2 are sorted in
+//increasing order.
+func intersect(l1, l2 leaf) *leaf {
+	var ret leaf
+	var capacity int
+	//set capacity to be the smaller of the two lists
+	if len(l1.Ids) > len(l2.Ids) {
+		capacity = len(l2.Ids)
+	} else {
+		capacity = len(l1.Ids)
+	}
+	ret.Ids = make([]int, 0, capacity)
+	ret.Vals = make([]float64, 0, capacity)
+	for i, s := range l1.Ids {
+		for _, t := range l2.Ids {
+			if t > s {
+				break
+			}
+			if s == t {
+				ret.Ids = append(ret.Ids, s)
+				ret.Vals = append(ret.Vals, l1.Vals[i]) //doesn't matter if we use l1.Vals or l2.Vals
+				break
+			}
+		}
+	}
+	return &ret
 }
 
 func (ii invertedIndex) Marshal() ([]byte, error) {
