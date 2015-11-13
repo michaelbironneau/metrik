@@ -60,7 +60,7 @@ func NewServer() *Server {
 	s := Server{
 		store:        &inMemoryStore{},
 		auth:         &openAPI{},
-		aggregates:   map[string]Aggregator{"sum": sum{}, "average": avg{}},
+		aggregates:   map[string]Aggregator{"sum": sum{}, "average": avg{}, "count": count{}},
 		indexHandler: defaultIndexHandler,
 	}
 	return &s

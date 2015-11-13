@@ -6,6 +6,20 @@ type Aggregator interface {
 	ApplyMany([][]float64) float64
 }
 
+type count struct{}
+
+func (c count) Apply(vals []float64) float64 {
+	return float64(len(vals))
+}
+
+func (c count) ApplyMany(vals [][]float64) float64 {
+	var ret float64
+	for _, list := range vals {
+		ret += float64(len(list))
+	}
+	return ret
+}
+
 type sum struct{}
 
 func (s sum) Apply(vals []float64) float64 {
