@@ -1,6 +1,9 @@
 package metrik
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 //type MetricPoint represents a tagged real-time metric value (e.g. Most recent CPU usage tagged with {"machine": "testserver"})
 type Point struct {
@@ -22,9 +25,20 @@ type Metric struct {
 	UpdateFunc  Updater `json:"-"`
 }
 
-//Utility function to convert a periodic polling updater to Updater type
+//Utility function to convert a periodic polling updater to Updater type, catching
+//any panics of the poller and converting them to errors. If a panic occurs we'll
+//re-launch the updater and hopefully it won't happen again.
 func PollUpdater(fetch func() (Points, error), interval time.Duration) Updater {
-	return func(result chan Points, stop chan bool) error {
+	return func(result chan Points, stop chan bool) (retErr error) {
+		defer func() {
+			if r := recover(); r != nil {
+				if err, ok := r.(error); ok {
+					retErr = err
+				} else {
+					retErr = errors.New("panic in poll updater")
+				}
+			}
+		}()
 		for {
 			select {
 			case <-time.After(interval):
