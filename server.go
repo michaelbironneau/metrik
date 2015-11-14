@@ -73,6 +73,7 @@ func (s *Server) Logger(l *log.Logger) *Server {
 
 func (s *Server) Metric(m *Metric) *Server {
 	s.metrics = append(s.metrics, m)
+	s.logf("added metric %s", m.Name)
 	return s
 }
 
@@ -84,6 +85,7 @@ func (s *Server) Aggregate(a Aggregator, name string) *Server {
 
 func (s *Server) Tag(t *Tag) *Server {
 	s.tags = append(s.tags, t)
+	s.logf("added tag %s", t.Name)
 	return s
 }
 
@@ -298,6 +300,7 @@ func (s *Server) startUpdaters() error {
 	s._stopChans = make([]chan bool, 0, len(s.metrics))
 	s._ilocks = make(map[string]*sync.RWMutex)
 	for _, metric := range s.metrics {
+		s.logf("starting updater for %s", metric.Name)
 		update, stop := s.updaterWrapper(metric)
 		s._updateChans[metric.Name] = update
 		s._stopChans = append(s._stopChans, stop)
