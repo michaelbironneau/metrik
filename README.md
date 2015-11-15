@@ -40,12 +40,14 @@ Here are some queries that we are using Metrik to answer:
 
 This is what your users will see. For an example of a real API that is powered by Metrik, check out the Apiary docs for our [public real-time API](https://jsapi.apiary.io/previews/oerealtimeapi/reference).
 
-There are four main routes:
+There are four routes:
 
 * `/metrics`: List of metrics and their metadata
 * `/tags`: List of tag groups and their metadata (eg. `{"name": "region", "description": "UK region (NUTS 1)"})`)
-* `/:aggregate/:metric[?tag_1=val_1[&tag_2=val_2[&...tag_n=val_n]]]`: Total aggregate with optional filtering. The equivalent SQL would be `SELECT :aggregate(:metric) WHERE tag_1 = val_1 AND tag_2 = val_2 AND ... tag_n = val_n`.
-* `/:aggregate/:metric/by/:tag[?tag_1=val_1[&tag_2=val_2[&...tag_n=val_n]]]`: group by aggregate with optional filtering. The equivalent SQL would be `SELECT :aggregate(:metric) WHERE tag_1 = val_1 AND tag_2 = val_2 AND ... tag_n = val_n GROUP BY :tag`.
+* `/:aggregate/:metric[?tag_1=val_1[&tag_2=val_2[&...tag_n=val_n]]]`: Total aggregate with optional filtering. The equivalent SQL would be `SELECT :aggregate(:metric) WHERE tag_1 = val_1 AND tag_2 = val_2 AND ... tag_n = val_n`. For example `sum/memory/?app=blog`.
+* `/:aggregate/:metric/by/:tag[?tag_1=val_1[&tag_2=val_2[&...tag_n=val_n]]]`: group by aggregate with optional filtering. The equivalent SQL would be `SELECT :aggregate(:metric) WHERE tag_1 = val_1 AND tag_2 = val_2 AND ... tag_n = val_n GROUP BY :tag`. For example `count/server/by/tenant`.
+
+There are three built-in aggregates: `count`, `sum`, and `average`. It is easy to add your own by implementing the Aggregator interface.
 
 Here is an example query and response pair:
 
