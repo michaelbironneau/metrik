@@ -8,20 +8,32 @@ type tagListResponse struct {
 	Tags []*Tag `json:"tags"`
 }
 
-type metricQueryResponseItem struct {
+//TotalAggregateItem
+type TotalAggregateResponseItem struct {
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
 }
 
-type metricGroupByResponseItem struct {
+//GroupbyAggregateItem
+type GroupbyAggregateResponseItem struct {
 	Name   string  `json:"name"`
 	Groups []group `json:"groups"`
 }
 
-type metricQueryResponse struct {
-	Metrics []metricQueryResponseItem `json:"metrics"`
+//TotalAggregateResponse
+type TotalAggregateResponse struct {
+	Metrics []TotalAggregateResponseItem `json:"metrics"`
 }
 
-type metricGroupByResponse struct {
-	Metrics []metricGroupByResponseItem `json:"metrics"`
+//GroupbyAggregateResponse
+type GroupbyAggregateResponse struct {
+	Metrics []GroupbyAggregateResponseItem `json:"metrics"`
 }
+
+//type TotalAggregateHook is an interface to hook and transform total aggregate responses.
+//the return type should be marshallable to JSON.
+type TotalAggregateHook func(TotalAggregateResponse) interface{}
+
+//type GroupbyAggregateHook is an interface to hook and transform groupby aggregate responses.
+//the return type should be marshallable to JSON.
+type GroupbyAggregateHook func(GroupbyAggregateResponse) interface{}
