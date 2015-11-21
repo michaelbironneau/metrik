@@ -138,9 +138,9 @@ func (ii invertedIndex) GetTotalAggregate(a Aggregator, t Tags) (float64, bool) 
 
 	if filtered, ok := ii.filter(t); ok {
 		return a.Apply(filtered.Vals), true
-	} else {
-		return 0, false
 	}
+
+	return 0, false
 
 }
 

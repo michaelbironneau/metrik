@@ -1,6 +1,6 @@
 package metrik
 
-//type AuthRequest represents an authorization request. Credentials are passed through HTTP Basic Auth headers.
+//AuthRequest represents an authorization request. Credentials are passed through HTTP Basic Auth headers.
 type AuthRequest struct {
 	User     string
 	Password string
@@ -8,11 +8,14 @@ type AuthRequest struct {
 	Tags     []string
 }
 
+//AuthError represents an authentication error.
 type AuthError struct {
-	HTTPStatus int
-	Message    string
+	HTTPStatus int    //HTTP status to return (eg. 401)
+	Message    string //Message that will be returned with the error
 }
 
+//AuthProvider represents an authentication provider. An authentication provider
+//is a hook that authenticates incoming requests.
 type AuthProvider interface {
 	Authorize(*AuthRequest) (bool, *AuthError)
 }

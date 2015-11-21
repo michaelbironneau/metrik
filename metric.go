@@ -5,16 +5,16 @@ import (
 	"time"
 )
 
-//type MetricPoint represents a tagged real-time metric value (e.g. Most recent CPU usage tagged with {"machine": "testserver"})
+//Point represents a tagged real-time metric value (e.g. Most recent CPU usage tagged with {"machine": "testserver"})
 type Point struct {
 	Tags  Tags
 	Value float64
 }
 
-//type Points is a collection of metric points over the whole population.
+//Points is a collection of metric points over the whole population.
 type Points []Point
 
-//Function that runs the updater. It should block. It should publish values through the first channel, and accept a stop command on the second.
+//Updater is a function that runs the an update routine. It should block. It should publish values through the first channel, and accept a stop command on the second.
 type Updater func(chan Points, chan bool) error
 
 //Metric provides an interface between the data fetcher and the aggregator.
@@ -25,7 +25,7 @@ type Metric struct {
 	UpdateFunc  Updater `json:"-"`
 }
 
-//Utility function to convert a periodic polling updater to Updater type, catching
+//PollUpdater is a utility function to convert a periodic polling updater to Updater type, catching
 //any panics of the poller and converting them to errors. If a panic occurs we'll
 //re-launch the updater and hopefully it won't happen again.
 func PollUpdater(fetch func() (Points, error), interval time.Duration) Updater {

@@ -1,6 +1,6 @@
 package metrik
 
-//type Aggregator reduces a list of values to a single value.
+//Aggregator reduces a list of values to a single value.
 type Aggregator interface {
 	Apply([]float64) float64
 	ApplyMany([][]float64) float64

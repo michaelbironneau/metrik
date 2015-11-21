@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-//type Store represents a storage mechanism for the metric data. Any key-value store will do.
+//Store represents a storage mechanism for the metric data. Any key-value store will do.
 type Store interface {
 	Initialize(...interface{}) error //Initialize the store
 	Put([]byte, []byte) error        //Put value
@@ -12,7 +12,7 @@ type Store interface {
 }
 
 type inMemoryStore struct {
-	sync.RWMutex
+	*sync.RWMutex
 	store map[string][]byte
 }
 

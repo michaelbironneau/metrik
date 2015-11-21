@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const _DEFAULT_INDEX = `
+const defaultIndex = `
 <!doctype html>
 <html>
 <head>
@@ -23,22 +23,24 @@ const _DEFAULT_INDEX = `
 </html>
 `
 
-const _UNKNOWN_AGGREGATE = `
+const unknownAggregate = `
 {"error": "unknown aggregate"}
 `
 
-const _INTERNAL_ERROR = `
+const internalError = `
 {"error": "internal server error"}
 `
 
-const _UNAUTHORIZED = `
+const unauthorized = `
 {"error": "_UNAUTHORIZED"}
 `
 
-const _NOT_FOUND = `
+const notFound = `
 {"error": "unknown route"}
 `
 
+//Server is an HTTP server for the Metrik JSON API. It exposes an interface to your users that allows them
+//to slice and dice metrics, performing operations such as group-by aggregates.
 type Server struct {
 	metrics      []*Metric
 	tags         []*Tag
@@ -58,6 +60,7 @@ type Server struct {
 	_updateChans map[string]chan Points
 }
 
+//NewServer creates a new Metrik server.
 func NewServer() *Server {
 	s := Server{
 		store:        &inMemoryStore{},
@@ -68,52 +71,55 @@ func NewServer() *Server {
 	return &s
 }
 
-//set a hook to transform total aggregate response
+//TotalAggregateHook sets a hook to transform server response for total aggregates (eg. /sum/metric)
+//There can only be one hook per server.
 func (s *Server) TotalAggregateHook(f TotalAggregateHook) *Server {
 	s.taHook = f
 	return s
 }
 
-//set a hook to transform group by aggregate hook
+//GroupbyAggregateHook sets a hook to transform group by aggregate hook for group-by aggregates (eg. /sum/metric/by/tag).
+//There can only be one hook per server.
 func (s *Server) GroupbyAggregateHook(f GroupbyAggregateHook) *Server {
 	s.gbHook = f
 	return s
 }
 
-//set the logger for the Metrik server.
+//Logger sets the logger for the Metrik server.
 func (s *Server) Logger(l *log.Logger) *Server {
 	s.logger = l
 	return s
 }
 
-//register a metric.
+//Metric registers a metric.
 func (s *Server) Metric(m *Metric) *Server {
 	s.metrics = append(s.metrics, m)
 	s.logf("added metric %s", m.Name)
 	return s
 }
 
-//register an aggregate.
+//Aggregate registers an aggregate.
 func (s *Server) Aggregate(a Aggregator, name string) *Server {
 	s.aggregates[name] = a
 	s._indexes[name] = newInvertedIndex()
 	return s
 }
 
-//register a tag group
+//Tag register a tag group.
 func (s *Server) Tag(t *Tag) *Server {
 	s.tags = append(s.tags, t)
 	s.logf("added tag %s", t.Name)
 	return s
 }
 
-//register a store (currently unused).
+//Store registers a store (currently unused).
 func (s *Server) Store(st Store) *Server {
 	s.store = st
 	return s
 }
 
-//register an authentication provider.
+//Auth register an authentication provider. The default AuthProvider is openAPI, which allows
+//all requests.
 func (s *Server) Auth(a AuthProvider) *Server {
 	s.auth = a
 	return s
@@ -121,12 +127,12 @@ func (s *Server) Auth(a AuthProvider) *Server {
 
 func defaultIndexHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
-	w.Write([]byte(_DEFAULT_INDEX))
+	w.Write([]byte(defaultIndex))
 }
 
 func unknownAggregateHandler(w http.ResponseWriter, r *http.Request) {
 	addHeaders(w, 404)
-	w.Write([]byte(_UNKNOWN_AGGREGATE))
+	w.Write([]byte(unknownAggregate))
 }
 
 func (s *Server) metricsIndexHandler(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +147,7 @@ func (s *Server) tagsIndexHandler(w http.ResponseWriter, r *http.Request) {
 
 func catchallHandler(w http.ResponseWriter, r *http.Request) {
 	addHeaders(w, 404)
-	w.Write([]byte(_NOT_FOUND))
+	w.Write([]byte(notFound))
 }
 
 func addHeaders(w http.ResponseWriter, status int) {
@@ -173,11 +179,11 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		metrics := strings.Split(r.URL.Path[len(aggregate)+2:], ",") // /sum/a,b,c -> [a,b,c]
 		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, nil)); !ok && err == nil {
 			addHeaders(w, 403)
-			w.Write([]byte(_UNAUTHORIZED))
+			w.Write([]byte(unauthorized))
 			return
 		} else if err != nil {
 			addHeaders(w, 500)
-			w.Write([]byte(_INTERNAL_ERROR))
+			w.Write([]byte(internalError))
 			return
 		}
 		var retval TotalAggregateResponse
@@ -211,7 +217,7 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 			if err != nil {
 				addHeaders(w, 500)
 				s.logf("error in hooked total aggregate %v", err)
-				w.Write([]byte(_INTERNAL_ERROR))
+				w.Write([]byte(internalError))
 				return
 			}
 			w.Write(b)
@@ -220,7 +226,7 @@ func (s *Server) totalAggHandlerWrapper(aggregate string) func(http.ResponseWrit
 		if err != nil {
 			addHeaders(w, 500)
 			s.logf("error in total aggregate %v", err)
-			w.Write([]byte(_INTERNAL_ERROR))
+			w.Write([]byte(internalError))
 			return
 		}
 		w.Write(b)
@@ -261,11 +267,11 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		metrics := strings.Split(metricString, ",")
 		if ok, err := s.auth.Authorize(makeAuthRequest(r, metrics, []string{tag})); !ok && err == nil {
 			addHeaders(w, 403)
-			w.Write([]byte(_UNAUTHORIZED))
+			w.Write([]byte(unauthorized))
 			return
 		} else if err != nil {
 			addHeaders(w, 500)
-			w.Write([]byte(_INTERNAL_ERROR))
+			w.Write([]byte(internalError))
 			return
 		}
 		var retval GroupbyAggregateResponse
@@ -298,7 +304,7 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 			if err != nil {
 				addHeaders(w, 500)
 				s.logf("error in hooked groupby aggregate %v", err)
-				w.Write([]byte(_INTERNAL_ERROR))
+				w.Write([]byte(internalError))
 				return
 			}
 			w.Write(b)
@@ -308,7 +314,7 @@ func (s *Server) metricGroupByHandlerWrapper(aggregate string) func(http.Respons
 		if err != nil {
 			addHeaders(w, 500)
 			s.logf("error in groupby aggregate %v", err)
-			w.Write([]byte(_INTERNAL_ERROR))
+			w.Write([]byte(internalError))
 			return
 		}
 		w.Write(b)
@@ -374,13 +380,14 @@ func (s *Server) listenForChanges() {
 	}
 }
 
-//Sends a stop signal to the metric updaters.
+//StopUpdaters sends a stop signal to the metric updaters.
 func (s *Server) StopUpdaters() {
 	for _, stopChan := range s._stopChans {
 		stopChan <- true
 	}
 }
 
+//Serve serves the HTTP/JSON API.
 func (s *Server) Serve(port int) error {
 	var err error
 	mms := metricListResponse{
@@ -400,7 +407,7 @@ func (s *Server) Serve(port int) error {
 	handler := regexpHandler{}
 	handler.Route("/$", s.indexHandler).Route("/metrics/*$", s.metricsIndexHandler).Route("/tags/*$", s.tagsIndexHandler) //metadata, the order doesn't matter
 
-	for aggregateName, _ := range s.aggregates {
+	for aggregateName := range s.aggregates {
 		handler.Route("/("+aggregateName+")/(.+)/by/(.+)/*", s.metricGroupByHandlerWrapper(aggregateName))
 		handler.Route("/("+aggregateName+")/(.+)/*", s.totalAggHandlerWrapper(aggregateName))
 		s.logf("Added aggregate %s", aggregateName)
