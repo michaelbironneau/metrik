@@ -19,6 +19,7 @@ const defaultIndex = `
 </head>
 <body>
 	<p>If you're seeing this, a Metrik server is running. Replace this by your own index page using Server.DefaultIndex(yourHandler).</p>
+	<p>To learn more about Metrik, please visit <a href="https://www.github.com/michaelbironneau/metrik">the Github repo</a></p>
 </body>
 </html>
 `
