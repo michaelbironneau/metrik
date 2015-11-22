@@ -3,10 +3,12 @@ package metrik
 import (
 	"bytes"
 	"encoding/gob"
+	"sort"
+	"time"
 )
 
 type leaf struct {
-	Ids  []int //although we're not using ids now, we might use them in future if we introduce a "filter" operator
+	Ids  []int
 	Vals []float64
 }
 
@@ -21,6 +23,64 @@ type tagGroup map[string]*leaf
 //type invertedIndex is an immutable mapping from tag key-value pairs to arrays of points
 //that are tagged with those pairs. Because it's immutable we don't need any locking around it.
 type invertedIndex map[string]tagGroup
+
+type timeSeriesItem struct {
+	T     time.Time
+	Index invertedIndex
+}
+
+type timeSeries []*timeSeriesItem
+
+func (t timeSeries) Latest() *timeSeriesItem {
+
+	if len(t) == 0 {
+		return nil
+	}
+
+	return t[len(t)-1]
+}
+
+func (t timeSeries) GreaterThan(start time.Time) []*timeSeriesItem {
+	i := sort.Search(len(t), func(i int) bool {
+		return t[i].T.After(start)
+	})
+	return t[i:]
+}
+
+func (t timeSeries) Insert(timestamp time.Time, index invertedIndex) {
+	i := sort.Search(len(t), func(i int) bool {
+		return t[i].T.After(timestamp)
+	})
+	
+	switch {
+		case i == len(t) && len(t) < cap(t):
+			//append
+			t = append(t, &timeSeriesItem{timestamp, index})
+		case i == len(t) && len(t) == cap(t):
+			//truncate and append
+			t = append(t[1:], &timeSeriesItem{timestamp, index})
+		case i == 0 && len(t) < cap(t):
+			//prepend
+			t = append([]*timeSeriesItem{&timeSeriesItem{timestamp, index}}, t...)
+		case i == 0 && len(t) == cap(t):
+			//can't prepend since the buffer is full 
+			//ignore the request
+			return
+		default:
+			//somewhere in the middle
+			if len(t) < cap(t) {
+				t = append(t[:i], append([]*timeSeriesItem{&timeSeriesItem{timestamp, index}}, t[i+1:]...)...)
+			} else {
+				//truncate and insert
+				t = append(t[1:i], append([]*timeSeriesItem{&timeSeriesItem{timestamp, index}}, t[i+1:]...)...)
+			}
+	}		
+}
+
+//fast path in case the timestamp is left to wall time
+func (t timeSeries) Append(index invertedIndex) {
+	t = append(t, &timeSeriesItem{time.Now(), index})
+}
 
 func newInvertedIndex() invertedIndex {
 	ii := make(invertedIndex)
